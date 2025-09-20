@@ -1,29 +1,16 @@
 import { google } from "googleapis";
-
-const ok = (body) => ({
-  statusCode: 200,
-  headers: {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  },
-  body: JSON.stringify(body, null, 2),
-});
-
-const bad = (code, msg) => ({
-  statusCode: code,
-  headers: {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  },
-  body: JSON.stringify({ error: msg }),
-});
-
 export const handler = async () => {
   try {
-    const SHEET_ID = process.env.DOGS_SHEET_ID;
+    // 🔑 Read env vars from Netlify
     const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
-    if (!SHEET_ID || !credsJson) {
-      return bad(500, "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT");
+    const SHEET_ID   = process.env.DOGS_SHEET_ID;
+
+    if (!credsJson || !SHEET_ID) {
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT" }),
+      };
     }
 
     const creds = JSON.parse(credsJson);
@@ -35,38 +22,31 @@ export const handler = async () => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Read first 6 columns (A..F) with header row
-    const RANGE = "'Dogs'!A1:F";
+    // Read all rows from 'Dogs' sheet
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: RANGE,
+      range: "'Dogs'!A:E",
     });
 
-    const rows = resp.data.values || [];
-    if (rows.length < 2) return ok({ dogs: [] });
+    const values = resp.data.values || [];
+    // Skip header
+    const [, ...rows] = values;
 
-    const header = rows[0];
-    const idx = {
-      ts: header.indexOf("Timestamp"),
-      name: header.indexOf("Name"),
-      photo: header.indexOf("PhotoURL"),
-      temp: header.indexOf("Temperament"),
-      size: header.indexOf("Size"),
-      weight: header.indexOf("Weight"),
-    };
-
-    const dogs = rows.slice(1).map((r) => ({
-      timestamp: r[idx.ts] || "",
-      name: r[idx.name] || "",
-      photoUrl: r[idx.photo] || "",
-      temperament: r[idx.temp] || "",
-      size: r[idx.size] || "",
-      weight: r[idx.weight] || "",
+    const dogs = rows.map(r => ({
+      name: r[0] || "",
+      photoUrl: r[1] || "",
+      temperament: r[2] || "",
+      size: r[3] || "",
+      weight: r[4] || "",
     }));
 
-    return ok({ dogs });
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dogs }),
+    };
   } catch (err) {
     console.error(err);
-    return bad(500, "Server error");
+    return { statusCode: 500, body: "Server error" };
   }
 };

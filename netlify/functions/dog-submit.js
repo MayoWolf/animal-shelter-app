@@ -1,57 +1,21 @@
 import { google } from "googleapis";
-
-const ok = (body) => ({
-  statusCode: 200,
-  headers: {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  },
-  body: JSON.stringify(body),
-});
-
-const bad = (code, msg) => ({
-  statusCode: code,
-  headers: {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  },
-  body: JSON.stringify({ error: msg }),
-});
-
 export const handler = async (event) => {
-  // Preflight
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-      body: "",
-    };
-  }
-
   if (event.httpMethod !== "POST") {
-    return bad(405, "Method Not Allowed");
+    return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
-    const SHEET_ID = process.env.DOGS_SHEET_ID;
+    // 🔑 Read env vars from Netlify
     const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
-    if (!SHEET_ID || !credsJson) {
-      return bad(500, "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT");
+    const SHEET_ID   = process.env.DOGS_SHEET_ID;
+
+    if (!credsJson || !SHEET_ID) {
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT" }),
+      };
     }
-
-    const { name, photoUrl, temperament, size, weight } = JSON.parse(event.body || "{}");
-
-    if (!name) return bad(400, "Missing 'name'");
-    // normalize fields
-    const ts = new Date().toISOString();
-    const safePhoto = (photoUrl || "").trim();
-    const safeTemp = (temperament || "").trim(); // Easy | Medium | Hard (free text OK)
-    const safeSize = (size || "").trim();         // e.g., Small | Medium | Large
-    const safeWeight = (weight ?? "").toString().trim();
 
     const creds = JSON.parse(credsJson);
     const jwt = new google.auth.JWT(
@@ -62,55 +26,38 @@ export const handler = async (event) => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // We’ll always read/write the first 6 columns: A..F
-    const RANGE = "'Dogs'!A1:F";
-
-    // Optional: ensure header exists (no-op if already there)
-    try {
-      const current = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: RANGE,
-      });
-      if (!current.data.values || current.data.values.length === 0) {
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: SHEET_ID,
-          range: RANGE,
-          valueInputOption: "RAW",
-          requestBody: {
-            values: [
-              ["Timestamp", "Name", "PhotoURL", "Temperament", "Size", "Weight"],
-            ],
-          },
-        });
-      }
-    } catch {
-      // If GET fails (e.g., empty sheet), write header
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SHEET_ID,
-        range: RANGE,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [
-            ["Timestamp", "Name", "PhotoURL", "Temperament", "Size", "Weight"],
-          ],
-        },
-      });
+    const { name, photoUrl, temperament, size, weight } = JSON.parse(event.body || "{}");
+    if (!name) {
+      return { statusCode: 400, body: "Missing dog name" };
     }
 
-    // Append the row
+    // Ensure header row exists in 'Dogs' sheet, then append
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: "'Dogs'!A1:E1",
+      valueInputOption: "RAW",
+      requestBody: { values: [["Name", "Photo", "Temperament", "Size", "Weight (lb)"]] },
+    });
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: RANGE, // explicit & valid A1 range
+      range: "'Dogs'!A:E",
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
-        values: [[ts, name, safePhoto, safeTemp, safeSize, safeWeight]],
+        values: [[
+          name,
+          photoUrl || "",
+          temperament || "",
+          size || "",
+          typeof weight === "number" ? weight : `${weight || ""}`
+        ]],
       },
     });
 
-    return ok({ ok: true });
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     console.error(err);
-    return bad(500, "Server error");
+    return { statusCode: 500, body: "Server error" };
   }
 };
