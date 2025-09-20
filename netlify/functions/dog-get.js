@@ -1,15 +1,18 @@
 import { google } from "googleapis";
-export const handler = async () => {
-  try {
-    // 🔑 Read env vars from Netlify
-    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
-    const SHEET_ID   = process.env.DOGS_SHEET_ID;
 
-    if (!credsJson || !SHEET_ID) {
+export const handler = async (event) => {
+  try {
+    const SHEET_ID =
+      process.env.DOGS_SHEET_ID ||
+      process.env.SHEET_ID_DOGS ||
+      process.env.SHEET_ID;
+
+    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (!SHEET_ID || !credsJson) {
       return {
-        statusCode: 400,
+        statusCode: 500,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT" }),
+        body: JSON.stringify({ error: "Missing sheet id or GOOGLE_SERVICE_ACCOUNT" }),
       };
     }
 
@@ -22,35 +25,52 @@ export const handler = async () => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Read all rows from 'Dogs' sheet
+    // Pull full table incl new columns
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "'Dogs'!A:E",
+      range: "'Dogs'!A:H",
     });
 
     const values = resp.data.values || [];
-    // Skip header
-    const [, ...rows] = values;
+    if (values.length < 2) {
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dogs: [] }),
+      };
+    }
 
-    const dogs = rows.map(r => ({
-      name: r[0] || "",
-      photoUrl: r[1] || "",
-      temperament: r[2] || "",
-      size: r[3] || "",
-      weight: r[4] || "",
+    const [header, ...data] = values;
+    const idx = (h) => header.indexOf(h);
+
+    const out = data.map((r) => ({
+      timestamp: r[idx("Timestamp")] || "",
+      name: r[idx("Name")] || "",
+      photoUrl: r[idx("PhotoURL")] || "",
+      temperament: r[idx("Temperament")] || "",
+      size: r[idx("Size")] || "",
+      weight: r[idx("Weight")] || "",
+      lastWalked: r[idx("LastWalked")] || "", // NEW
+      notes: r[idx("Notes")] || ""            // NEW
     }));
+
+    // Optional: single dog lookup ?dog=Name
+    const q = event.queryStringParameters?.dog;
+    const body = q
+      ? { dog: out.find(d => (d.name || "").toLowerCase() === q.toLowerCase()) || null }
+      : { dogs: out };
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dogs }),
+      body: JSON.stringify(body),
     };
-  } catch (err) {
-    console.error(err);
-    return { statusCode: 500, body: "Server error" };
+  } catch (e) {
+    console.error(e);
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Server error" }),
+    };
   }
-  const SHEET_ID = process.env.SHEET_ID_DOGS || process.env.DOGS_SHEET_ID;
-if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT) {
-  return { statusCode: 500, body: JSON.stringify({ error: 'Missing env vars SHEET_ID_DOGS/DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT' }) };
-}
 };

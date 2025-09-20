@@ -1,20 +1,37 @@
 import { google } from "googleapis";
+
 export const handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
-  }
-
   try {
-    // 🔑 Read env vars from Netlify
-    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
-    const SHEET_ID   = process.env.DOGS_SHEET_ID;
+    if (event.httpMethod !== "POST") {
+      return { statusCode: 405, body: "Method Not Allowed" };
+    }
 
-    if (!credsJson || !SHEET_ID) {
+    const SHEET_ID =
+      process.env.DOGS_SHEET_ID ||
+      process.env.SHEET_ID_DOGS ||
+      process.env.SHEET_ID;
+
+    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (!SHEET_ID || !credsJson) {
       return {
-        statusCode: 400,
+        statusCode: 500,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT" }),
+        body: JSON.stringify({ error: "Missing sheet id or GOOGLE_SERVICE_ACCOUNT" }),
       };
+    }
+
+    const {
+      name,
+      photoUrl = "",
+      temperament = "",
+      size = "",
+      weight = "",
+      lastWalked = "", // NEW
+      notes = ""       // NEW
+    } = JSON.parse(event.body || "{}");
+
+    if (!name) {
+      return { statusCode: 400, body: "Missing dog name" };
     }
 
     const creds = JSON.parse(credsJson);
@@ -26,43 +43,70 @@ export const handler = async (event) => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    const { name, photoUrl, temperament, size, weight } = JSON.parse(event.body || "{}");
-    if (!name) {
-      return { statusCode: 400, body: "Missing dog name" };
+    // Read all rows to upsert by Name
+    const read = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "'Dogs'!A:H",
+    });
+
+    const rows = read.data.values || [];
+    const header = rows[0] || [];
+
+    // Build the new row in header order:
+    // A: Timestamp | B: Name | C: PhotoURL | D: Temperament | E: Size | F: Weight | G: LastWalked | H: Notes
+    const nowIso = new Date().toISOString();
+    const newRow = [
+      nowIso,
+      name,
+      photoUrl,
+      temperament,
+      size,
+      String(weight),
+      lastWalked, // NEW G
+      notes       // NEW H
+    ];
+
+    // Find existing row for this Name (case-insensitive trim)
+    let targetRowIndex = -1; // 0-based within rows array (incl header)
+    const nameColIndex = header.indexOf("Name"); // should be 1
+    if (nameColIndex !== -1 && rows.length > 1) {
+      for (let i = 1; i < rows.length; i++) {
+        const cell = (rows[i][nameColIndex] || "").toString().trim().toLowerCase();
+        if (cell === name.trim().toLowerCase()) {
+          targetRowIndex = i;
+          break;
+        }
+      }
     }
 
-    // Ensure header row exists in 'Dogs' sheet, then append
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: "'Dogs'!A1:E1",
-      valueInputOption: "RAW",
-      requestBody: { values: [["Name", "Photo", "Temperament", "Size", "Weight (lb)"]] },
-    });
+    if (targetRowIndex === -1) {
+      // Append
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SHEET_ID,
+        range: "'Dogs'!A:H",
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: { values: [newRow] },
+      });
+    } else {
+      // Update the exact row
+      const sheetRowNumber = targetRowIndex + 1; // convert to 1-based
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: `'Dogs'!A${sheetRowNumber}:H${sheetRowNumber}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [newRow] },
+      });
+    }
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: "'Dogs'!A:E",
-      valueInputOption: "RAW",
-      insertDataOption: "INSERT_ROWS",
-      requestBody: {
-        values: [[
-          name,
-          photoUrl || "",
-          temperament || "",
-          size || "",
-          typeof weight === "number" ? weight : `${weight || ""}`
-        ]],
-      },
-    });
-
-    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
-  } catch (err) {
-    console.error(err);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ok: true }),
+    };
+  } catch (e) {
+    console.error(e);
     return { statusCode: 500, body: "Server error" };
   }
-  const SHEET_ID = process.env.SHEET_ID_DOGS || process.env.DOGS_SHEET_ID;
-if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT) {
-  return { statusCode: 500, body: JSON.stringify({ error: 'Missing env vars SHEET_ID_DOGS/DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT' }) };
-}
-
+  
 };
