@@ -60,4 +60,9 @@ export const handler = async (event) => {
     console.error(err);
     return { statusCode: 500, body: "Server error" };
   }
+  const SHEET_ID = process.env.SHEET_ID_DOGS || process.env.DOGS_SHEET_ID;
+if (!SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT) {
+  return { statusCode: 500, body: JSON.stringify({ error: 'Missing env vars SHEET_ID_DOGS/DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT' }) };
+}
+
 };
