@@ -1,12 +1,40 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Shelter Dogs</title>
-</head>
-<body>
-  <h1>Shelter Dogs App</h1>
-  <p>This is the frontend. Replace with your real UI.</p>
-</body>
-</html>
+<form id="dogForm">
+  <input id="name" placeholder="Dog name" required />
+  <input id="photoUrl" placeholder="Photo URL" />
+  <select id="difficulty">
+    <option value="">Difficulty…</option>
+    <option>Easy</option><option>Medium</option><option>Hard</option>
+  </select>
+  <input id="size" placeholder="Size (e.g., Medium)" />
+  <input id="weight" placeholder="Weight (e.g., 42 lb)" />
+  <button type="submit">Save Dog</button>
+</form>
+
+<button id="loadDogs">Load Dogs</button>
+<pre id="out"></pre>
+
+<script>
+  const out = document.getElementById('out');
+
+  document.getElementById('dogForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: document.getElementById('name').value.trim(),
+      photoUrl: document.getElementById('photoUrl').value.trim(),
+      difficulty: document.getElementById('difficulty').value,
+      size: document.getElementById('size').value.trim(),
+      weight: document.getElementById('weight').value.trim()
+    };
+    const res = await fetch('/.netlify/functions/dog-submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    out.textContent = await res.text();
+  });
+
+  document.getElementById('loadDogs').addEventListener('click', async () => {
+    const res = await fetch('/.netlify/functions/dog-get');
+    out.textContent = JSON.stringify(await res.json(), null, 2);
+  });
+</script>
