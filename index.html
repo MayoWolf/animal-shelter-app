@@ -1,63 +1,424 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Shelter Dogs – test UI</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:16px}
-    input,select,button{font-size:16px;padding:10px;margin:6px 8px 6px 0}
-    pre{background:#111;color:#0f0;padding:12px;border-radius:8px;overflow:auto}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shelter Dogs</title>
+
+<!-- Theme colors -->
+<meta name="theme-color" content="#0b0b0b">
+
+<style>
+:root{
+  /* DARK (default) */
+  --bg:#0b0b0b; --bg2:#121212;
+  --card:rgba(255,255,255,.06); --card-brd:rgba(255,255,255,.12);
+  --text:#f6f7f8; --muted:#b7bfc9;
+  --accent:#ff7a00; --accent2:#ff9c33;
+  --ok:#4ade80; --warn:#f59e0b; --danger:#ef4444;
+  --ring:rgba(255,122,0,.4);
+  --shadow:0 20px 40px rgba(0,0,0,.35);
+  --radius:18px;
+}
+
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#ffffff; --bg2:#f6f6f6;
+    --card:rgba(255,255,255,.85); --card-brd:rgba(0,0,0,.08);
+    --text:#121212; --muted:#606b78;
+    --ring:rgba(255,122,0,.25);
+    --shadow:0 20px 40px rgba(9,30,66,.12);
+  }
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--text);
+  font-family: ui-rounded, "SF Pro Rounded", "SF Pro Text",
+    -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background:
+    radial-gradient(1100px 800px at 10% -10%, #23170c 0%, transparent 60%),
+    radial-gradient(1000px 700px at 110% 40%, #1a130c 0%, transparent 55%),
+    linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+  min-height:100svh;
+}
+
+.wrap{max-width:1100px;margin:28px auto 64px;padding:0 18px}
+header.brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.badge{width:44px;height:44px;border-radius:14px;
+  background:linear-gradient(145deg, var(--accent), var(--accent2));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 14px 28px rgba(255,153,51,.35);
+}
+h1{margin:0;font-size:clamp(26px,4vw,34px);letter-spacing:.2px}
+.subtitle{color:var(--muted);margin-top:6px;font-size:14px}
+
+.grid{
+  display:grid; gap:16px;
+  grid-template-columns: 1.2fr .9fr;
+}
+@media (max-width: 920px){ .grid{ grid-template-columns: 1fr; } }
+
+.card{
+  background:var(--card); border:1px solid var(--card-brd);
+  backdrop-filter: blur(16px) saturate(120%);
+  border-radius:var(--radius); box-shadow:var(--shadow); overflow:clip;
+}
+
+.section{padding:18px;border-bottom:1px solid var(--card-brd)}
+.section:last-child{border-bottom:0}
+
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.col{flex:1 1 260px; min-width:220px}
+.label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.input, .select, .textarea{
+  width:100%; padding:12px 14px; border-radius:12px;
+  background:rgba(255,255,255,.06); color:var(--text);
+  border:1px solid var(--card-brd); outline:none; font-size:15px;
+  transition: box-shadow .2s, border-color .2s, transform .06s;
+}
+.input:focus, .select:focus, .textarea:focus{
+  box-shadow:0 0 0 8px var(--ring); border-color:transparent;
+}
+.textarea{min-height:96px; resize:vertical}
+
+.radio{
+  display:inline-flex; align-items:center; gap:10px; padding:10px 12px;
+  border:1px solid var(--card-brd); border-radius:12px;
+  background:rgba(255,255,255,.06); cursor:pointer;
+}
+.radio input{appearance:none;width:16px;height:16px;border-radius:999px;
+  border:2px solid var(--muted); position:relative; outline:none;
+}
+.radio input:checked{border-color:var(--accent)}
+.radio input:checked::after{
+  content:""; position:absolute; inset:3px; border-radius:999px;
+  background:var(--accent);
+}
+
+.preview{
+  width:100%; aspect-ratio: 16/9; border-radius:14px; overflow:hidden;
+  background:rgba(255,255,255,.04); border:1px solid var(--card-brd);
+  display:grid; place-items:center; color:var(--muted);
+}
+.preview img{width:100%;height:100%;object-fit:cover;display:block}
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:12px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, #1a1a1a, #151515); color:#fff; font-weight:700;
+  box-shadow:0 10px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.15);
+  cursor:pointer; transition: transform .06s, box-shadow .2s, background .3s;
+}
+.btn:hover{ transform:translateY(-1px); box-shadow:0 14px 26px rgba(0,0,0,.38) }
+.btn:active{ transform:translateY(0) scale(.985) }
+.btn[disabled]{opacity:.6;cursor:not-allowed;filter:saturate(.7)}
+.btn.primary{
+  background:linear-gradient(180deg, var(--accent2), var(--accent));
+  color:#101010; border-color:transparent;
+  box-shadow:0 10px 22px rgba(255,122,0,.35), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.btn.ghost{
+  background:transparent; border-color:var(--card-brd); color:var(--text);
+}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.status{font-size:13px;color:var(--muted)}
+.status.ok{color:var(--ok)} .status.err{color:var(--danger)}
+
+.list{
+  max-height: 70vh; overflow:auto; padding:10px;
+}
+.item{
+  display:flex; gap:12px; align-items:center; padding:10px; border-radius:12px;
+  border:1px solid var(--card-brd); cursor:pointer; transition: background .15s, transform .06s;
+  background:rgba(255,255,255,.04);
+}
+.item:hover{ background:rgba(255,255,255,.07); transform:translateY(-1px) }
+.thumb{width:58px;height:58px;border-radius:12px;overflow:hidden;border:1px solid var(--card-brd); background:#0c0c0c}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.meta b{display:block;font-size:15px}
+.meta small{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:22px 10px}
+.kv{color:var(--muted)}
+</style>
 </head>
 <body>
-  <input id="name" placeholder="Dog name" value="Wolf Nazari">
-  <input id="photo" placeholder="Photo URL">
-  <select id="temperament">
-    <option>Easy</option>
-    <option>Medium</option>
-    <option>Hard</option>
-  </select>
-  <input id="size" placeholder="Size (e.g., Medium)" value="Medium">
-  <input id="weight" placeholder="Weight (lbs)" value="43">
-  <button id="save">Save Dog</button>
-  <p></p>
-  <button id="load">Load Dogs</button>
+  <div class="wrap">
+    <header class="brand">
+      <div class="badge" aria-hidden="true"></div>
+      <div>
+        <h1>Shelter Dogs</h1>
+        <div class="subtitle">Add, review, and update dogs — one tap to log a walk.</div>
+      </div>
+    </header>
 
-  <pre id="out"></pre>
+    <div class="grid">
+      <!-- LEFT: Form -->
+      <main class="card" id="formCard" aria-labelledby="formTitle">
+        <div class="section">
+          <h2 id="formTitle" style="margin:0 0 6px;font-size:18px">Dog details</h2>
+          <div class="kv" id="metaLine"></div>
+        </div>
 
-  <script>
-    const out = document.getElementById('out');
-    const show = (obj) => out.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+        <div class="section">
+          <div class="row">
+            <div class="col">
+              <label class="label" for="name">Name</label>
+              <input id="name" class="input" placeholder="Luna" autocomplete="off" />
+            </div>
+            <div class="col">
+              <label class="label" for="photoUrl">Photo URL</label>
+              <input id="photoUrl" class="input" placeholder="https://…" autocomplete="off" />
+            </div>
+          </div>
 
-    document.getElementById('save').onclick = async () => {
-      const body = {
-        name: document.getElementById('name').value.trim(),
-        photoUrl: document.getElementById('photo').value.trim(),
-        temperament: document.getElementById('temperament').value,
-        size: document.getElementById('size').value.trim(),
-        weight: document.getElementById('weight').value.trim()
-      };
-      try {
-        const res = await fetch('/.netlify/functions/dog-submit', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(body)
-        });
-        show(await res.json());
-      } catch(e){
-        show('Network error');
-      }
-    };
+          <div class="row" style="margin-top:10px">
+            <div class="col">
+              <label class="label">Temperament</label>
+              <div class="row">
+                <label class="radio"><input type="radio" name="temperament" value="Easy" checked> Easy</label>
+                <label class="radio"><input type="radio" name="temperament" value="Medium"> Medium</label>
+                <label class="radio"><input type="radio" name="temperament" value="Hard"> Hard</label>
+              </div>
+            </div>
 
-    document.getElementById('load').onclick = async () => {
-      try {
-        const res = await fetch('/.netlify/functions/dog-get');
-        show(await res.json());
-      } catch(e){
-        show('Network error');
-      }
-    };
-  </script>
+            <div class="col">
+              <label class="label" for="size">Size</label>
+              <select id="size" class="select">
+                <option value="">Select size…</option>
+                <option>Small</option>
+                <option>Medium</option>
+                <option>Large</option>
+                <option>XL</option>
+              </select>
+            </div>
+
+            <div class="col">
+              <label class="label" for="weight">Weight (lb)</label>
+              <input id="weight" class="input" type="number" inputmode="decimal" placeholder="48" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <div class="col">
+              <label class="label" for="lastWalked">Last time walked</label>
+              <div class="row" style="gap:8px">
+                <input id="lastWalked" class="input" type="datetime-local" style="flex:1 1 auto; min-width:220px">
+                <button id="stampNow" class="btn ghost" type="button" title="Stamp current time">Walked just now</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <div class="col">
+              <label class="label" for="notes">Notes</label>
+              <textarea id="notes" class="textarea" placeholder="Friendly with kids, avoid other males, loves tennis balls…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <div class="col">
+              <div class="label">Preview</div>
+              <div class="preview" id="preview">
+                <span>No photo yet</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row" style="align-items:center; justify-content:space-between">
+            <div class="actions">
+              <button id="saveBtn" class="btn primary" type="button">Save</button>
+              <button id="resetBtn" class="btn" type="button">Reset</button>
+            </div>
+            <div id="status" class="status" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </main>
+
+      <!-- RIGHT: List -->
+      <aside class="card">
+        <div class="section">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <h2 style="margin:0;font-size:18px">Dogs</h2>
+            <button id="refreshBtn" class="btn" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="section">
+          <div id="dogsList" class="list">
+            <div class="empty">No dogs yet — add one on the left.</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+const $ = (id)=>document.getElementById(id);
+const statusEl = $("status");
+const previewEl = $("preview");
+const listEl = $("dogsList");
+
+function setStatus(msg, kind){
+  statusEl.textContent = msg || "";
+  statusEl.classList.toggle("ok", kind==="ok");
+  statusEl.classList.toggle("err", kind==="err");
+}
+
+function isoNowLocal(){
+  // Return yyyy-MM-ddThh:mm for datetime-local
+  const d = new Date();
+  const pad=(n)=>String(n).padStart(2,"0");
+  const yyyy=d.getFullYear(), mm=pad(d.getMonth()+1), dd=pad(d.getDate());
+  const hh=pad(d.getHours()), mi=pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+function localToISO(s){
+  // Convert datetime-local value to ISO string (Z)
+  if(!s) return "";
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? "" : dt.toISOString();
+}
+
+// Live photo preview
+$("photoUrl").addEventListener("input", ()=>{
+  const url = $("photoUrl").value.trim();
+  previewEl.innerHTML = url
+    ? `<img src="${url}" alt="Dog photo preview" onerror="this.parentNode.innerHTML='<span>Invalid image URL</span>'">`
+    : `<span>No photo yet</span>`;
+});
+
+// Stamp "now" into lastWalked
+$("stampNow").addEventListener("click", ()=>{
+  $("lastWalked").value = isoNowLocal();
+});
+
+// Reset form
+$("resetBtn").addEventListener("click", ()=>{
+  document.querySelector('input[name="temperament"][value="Easy"]').checked = true;
+  $("name").value = "";
+  $("photoUrl").value = "";
+  $("size").value = "";
+  $("weight").value = "";
+  $("lastWalked").value = "";
+  $("notes").value = "";
+  previewEl.innerHTML = `<span>No photo yet</span>`;
+  setStatus("");
+});
+
+// Save (upsert by Name)
+$("saveBtn").addEventListener("click", async ()=>{
+  const name = $("name").value.trim();
+  if(!name){ setStatus("Please enter a name.", "err"); return; }
+
+  const temperament = (document.querySelector('input[name="temperament"]:checked')||{}).value || "";
+  const payload = {
+    name,
+    photoUrl: $("photoUrl").value.trim(),
+    temperament,
+    size: $("size").value,
+    weight: $("weight").value,
+    lastWalked: localToISO($("lastWalked").value),
+    notes: $("notes").value.trim()
+  };
+
+  try{
+    setStatus("Saving…");
+    const res = await fetch("/.netlify/functions/dog-submit", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok){
+      const txt = await res.text().catch(()=> "Server error");
+      setStatus("Error: " + txt, "err");
+      return;
+    }
+    setStatus("Saved ✓", "ok");
+    await loadDogs(); // refresh list
+  }catch(err){
+    setStatus("Network error.", "err");
+  }
+});
+
+// Load dogs list
+async function loadDogs(){
+  try{
+    const res = await fetch("/.netlify/functions/dog-get");
+    if(!res.ok) throw new Error("fail");
+    const data = await res.json();
+    const dogs = data.dogs || [];
+    if(!dogs.length){
+      listEl.innerHTML = `<div class="empty">No dogs yet — add one on the left.</div>`;
+      return;
+    }
+    listEl.innerHTML = dogs.map(d => `
+      <div class="item" data-name="${encodeURIComponent(d.name)}" title="Click to load">
+        <div class="thumb">${ d.photoUrl ? `<img src="${d.photoUrl}" alt="">` : "" }</div>
+        <div class="meta">
+          <b>${d.name || "(unnamed)"}</b>
+          <small>
+            ${d.temperament || "—"} • ${d.size || "?"}${d.weight ? ` • ${d.weight} lb` : ""}
+            ${d.lastWalked ? ` • walked ${new Date(d.lastWalked).toLocaleString()}` : ""}
+          </small>
+        </div>
+      </div>
+    `).join("");
+
+    // Click to load into form
+    listEl.querySelectorAll(".item").forEach(el=>{
+      el.addEventListener("click", async ()=>{
+        const name = decodeURIComponent(el.getAttribute("data-name"));
+        await loadOne(name);
+        window.scrollTo({top:0, behavior:"smooth"});
+      });
+    });
+  }catch{
+    listEl.innerHTML = `<div class="empty">Couldn’t load list.</div>`;
+  }
+}
+
+async function loadOne(name){
+  try{
+    setStatus(`Loading ${name}…`);
+    const res = await fetch(`/.netlify/functions/dog-get?dog=${encodeURIComponent(name)}`);
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    const d = data.dog;
+    if(!d){ setStatus("Not found.", "err"); return; }
+
+    $("name").value = d.name || "";
+    $("photoUrl").value = d.photoUrl || "";
+    $("size").value = d.size || "";
+    $("weight").value = d.weight || "";
+    $("notes").value = d.notes || "";
+
+    if(d.temperament){
+      const r = document.querySelector(`input[name="temperament"][value="${d.temperament}"]`);
+      if(r) r.checked = true;
+    }else{
+      document.querySelector('input[name="temperament"][value="Easy"]').checked = true;
+    }
+
+    // preview
+    $("photoUrl").dispatchEvent(new Event("input"));
+
+    // lastWalked → datetime-local
+    $("lastWalked").value = (d.lastWalked && d.lastWalked.length>=16)
+      ? d.lastWalked.replace('Z','')
+      : "";
+
+    setStatus(`Loaded ${d.name}.`, "ok");
+  }catch{
+    setStatus("Couldn’t load dog.", "err");
+  }
+}
+
+// init
+loadDogs();
+</script>
 </body>
 </html>
