@@ -1,40 +1,63 @@
-<form id="dogForm">
-  <input id="name" placeholder="Dog name" required />
-  <input id="photoUrl" placeholder="Photo URL" />
-  <select id="difficulty">
-    <option value="">Difficulty…</option>
-    <option>Easy</option><option>Medium</option><option>Hard</option>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shelter Dogs – test UI</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:16px}
+    input,select,button{font-size:16px;padding:10px;margin:6px 8px 6px 0}
+    pre{background:#111;color:#0f0;padding:12px;border-radius:8px;overflow:auto}
+  </style>
+</head>
+<body>
+  <input id="name" placeholder="Dog name" value="Wolf Nazari">
+  <input id="photo" placeholder="Photo URL">
+  <select id="temperament">
+    <option>Easy</option>
+    <option>Medium</option>
+    <option>Hard</option>
   </select>
-  <input id="size" placeholder="Size (e.g., Medium)" />
-  <input id="weight" placeholder="Weight (e.g., 42 lb)" />
-  <button type="submit">Save Dog</button>
-</form>
+  <input id="size" placeholder="Size (e.g., Medium)" value="Medium">
+  <input id="weight" placeholder="Weight (lbs)" value="43">
+  <button id="save">Save Dog</button>
+  <p></p>
+  <button id="load">Load Dogs</button>
 
-<button id="loadDogs">Load Dogs</button>
-<pre id="out"></pre>
+  <pre id="out"></pre>
 
-<script>
-  const out = document.getElementById('out');
+  <script>
+    const out = document.getElementById('out');
+    const show = (obj) => out.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
 
-  document.getElementById('dogForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = {
-      name: document.getElementById('name').value.trim(),
-      photoUrl: document.getElementById('photoUrl').value.trim(),
-      difficulty: document.getElementById('difficulty').value,
-      size: document.getElementById('size').value.trim(),
-      weight: document.getElementById('weight').value.trim()
+    document.getElementById('save').onclick = async () => {
+      const body = {
+        name: document.getElementById('name').value.trim(),
+        photoUrl: document.getElementById('photo').value.trim(),
+        temperament: document.getElementById('temperament').value,
+        size: document.getElementById('size').value.trim(),
+        weight: document.getElementById('weight').value.trim()
+      };
+      try {
+        const res = await fetch('/.netlify/functions/dog-submit', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(body)
+        });
+        show(await res.json());
+      } catch(e){
+        show('Network error');
+      }
     };
-    const res = await fetch('/.netlify/functions/dog-submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    out.textContent = await res.text();
-  });
 
-  document.getElementById('loadDogs').addEventListener('click', async () => {
-    const res = await fetch('/.netlify/functions/dog-get');
-    out.textContent = JSON.stringify(await res.json(), null, 2);
-  });
-</script>
+    document.getElementById('load').onclick = async () => {
+      try {
+        const res = await fetch('/.netlify/functions/dog-get');
+        show(await res.json());
+      } catch(e){
+        show('Network error');
+      }
+    };
+  </script>
+</body>
+</html>

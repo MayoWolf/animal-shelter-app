@@ -1,45 +1,72 @@
-import { google } from 'googleapis';
+import { google } from "googleapis";
+
+const ok = (body) => ({
+  statusCode: 200,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify(body, null, 2),
+});
+
+const bad = (code, msg) => ({
+  statusCode: code,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify({ error: msg }),
+});
 
 export const handler = async () => {
   try {
-    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-    const SHEET_ID = process.env.SHEET_ID;
+    const SHEET_ID = process.env.DOGS_SHEET_ID;
+    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (!SHEET_ID || !credsJson) {
+      return bad(500, "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT");
+    }
 
+    const creds = JSON.parse(credsJson);
     const jwt = new google.auth.JWT(
-      creds.client_email, null, creds.private_key,
-      ['https://www.googleapis.com/auth/spreadsheets.readonly']
+      creds.client_email,
+      null,
+      creds.private_key,
+      ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     );
-    const sheets = google.sheets({ version: 'v4', auth: jwt });
+    const sheets = google.sheets({ version: "v4", auth: jwt });
 
+    // Read first 6 columns (A..F) with header row
+    const RANGE = "'Dogs'!A1:F";
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: "'Dogs'!A:Z",
+      range: RANGE,
     });
 
     const rows = resp.data.values || [];
     if (rows.length < 2) return ok({ dogs: [] });
 
-    const dogs = rows.slice(1).map(r => ({
-      timestamp: r[0] || '',
-      name:      r[1] || '',
-      difficulty:r[2] || '',
-      size:      r[3] || '',
-      weight:    r[4] || '',
-      photo:     r[5] || '',
-      notes:     r[6] || '',
-    })).filter(d => d.name);
+    const header = rows[0];
+    const idx = {
+      ts: header.indexOf("Timestamp"),
+      name: header.indexOf("Name"),
+      photo: header.indexOf("PhotoURL"),
+      temp: header.indexOf("Temperament"),
+      size: header.indexOf("Size"),
+      weight: header.indexOf("Weight"),
+    };
+
+    const dogs = rows.slice(1).map((r) => ({
+      timestamp: r[idx.ts] || "",
+      name: r[idx.name] || "",
+      photoUrl: r[idx.photo] || "",
+      temperament: r[idx.temp] || "",
+      size: r[idx.size] || "",
+      weight: r[idx.weight] || "",
+    }));
 
     return ok({ dogs });
   } catch (err) {
     console.error(err);
-    return ok({ dogs: [] });
+    return bad(500, "Server error");
   }
 };
-
-function ok(body) {
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
-}

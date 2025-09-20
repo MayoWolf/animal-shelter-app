@@ -1,63 +1,116 @@
-import { google } from 'googleapis';
+import { google } from "googleapis";
+
+const ok = (body) => ({
+  statusCode: 200,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify(body),
+});
+
+const bad = (code, msg) => ({
+  statusCode: code,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify({ error: msg }),
+});
 
 export const handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+  // Preflight
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+      body: "",
+    };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return bad(405, "Method Not Allowed");
   }
 
   try {
-    const body = JSON.parse(event.body || '{}');
-    const { name, difficulty, size, weight, photo, notes, timestamp } = body;
-    if (!name) return { statusCode: 400, body: 'Missing name' };
-
-    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
-    const SHEET_ID = process.env.SHEET_ID;
-
-    const jwt = new google.auth.JWT(
-      creds.client_email, null, creds.private_key,
-      ['https://www.googleapis.com/auth/spreadsheets']
-    );
-    const sheets = google.sheets({ version: 'v4', auth: jwt });
-
-    const read = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: "'Dogs'!A:Z",
-    });
-
-    const rows = read.data.values || [];
-    const header = rows[0] || [];
-    const nameIdx = header.findIndex(h => String(h || '').toLowerCase().includes('dog name'));
-    let updateRowIndex = -1;
-
-    for (let i = 1; i < rows.length; i++) {
-      if ((rows[i][nameIdx] || '').toLowerCase() === name.toLowerCase()) {
-        updateRowIndex = i; break;
-      }
+    const SHEET_ID = process.env.DOGS_SHEET_ID;
+    const credsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (!SHEET_ID || !credsJson) {
+      return bad(500, "Missing env vars DOGS_SHEET_ID or GOOGLE_SERVICE_ACCOUNT");
     }
 
-    const row = [timestamp, name, difficulty, size, weight, photo, notes];
+    const { name, photoUrl, temperament, size, weight } = JSON.parse(event.body || "{}");
 
-    if (updateRowIndex >= 1) {
-      const range = `Dogs!A${updateRowIndex + 1}:G${updateRowIndex + 1}`;
+    if (!name) return bad(400, "Missing 'name'");
+    // normalize fields
+    const ts = new Date().toISOString();
+    const safePhoto = (photoUrl || "").trim();
+    const safeTemp = (temperament || "").trim(); // Easy | Medium | Hard (free text OK)
+    const safeSize = (size || "").trim();         // e.g., Small | Medium | Large
+    const safeWeight = (weight ?? "").toString().trim();
+
+    const creds = JSON.parse(credsJson);
+    const jwt = new google.auth.JWT(
+      creds.client_email,
+      null,
+      creds.private_key,
+      ["https://www.googleapis.com/auth/spreadsheets"]
+    );
+    const sheets = google.sheets({ version: "v4", auth: jwt });
+
+    // We’ll always read/write the first 6 columns: A..F
+    const RANGE = "'Dogs'!A1:F";
+
+    // Optional: ensure header exists (no-op if already there)
+    try {
+      const current = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: RANGE,
+      });
+      if (!current.data.values || current.data.values.length === 0) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: RANGE,
+          valueInputOption: "RAW",
+          requestBody: {
+            values: [
+              ["Timestamp", "Name", "PhotoURL", "Temperament", "Size", "Weight"],
+            ],
+          },
+        });
+      }
+    } catch {
+      // If GET fails (e.g., empty sheet), write header
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range,
-        valueInputOption: 'RAW',
-        requestBody: { values: [row] },
-      });
-    } else {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: SHEET_ID,
-        range: "'Dogs'!A:Z",
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [row] },
+        range: RANGE,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [
+            ["Timestamp", "Name", "PhotoURL", "Temperament", "Size", "Weight"],
+          ],
+        },
       });
     }
 
-    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+    // Append the row
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: RANGE, // explicit & valid A1 range
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [[ts, name, safePhoto, safeTemp, safeSize, safeWeight]],
+      },
+    });
+
+    return ok({ ok: true });
   } catch (err) {
     console.error(err);
-    return { statusCode: 500, body: 'Server error' };
+    return bad(500, "Server error");
   }
 };
