@@ -370,28 +370,37 @@ $("clearFilters").addEventListener("click", ()=>{
 });
 
 // Render list
-function renderList(dogs){
-  if(!dogs.length){ listEl.innerHTML = `<div class="empty">No results.</div>`; return; }
-  listEl.innerHTML = dogs.map(d => `
-    <div class="item" data-name="${encodeURIComponent(d.name)}" title="Click to load">
-      <div class="thumb">${ d.photoUrl ? `<img src="${d.photoUrl}" alt="">` : "" }</div>
-      <div class="meta">
-        <b>${d.name || "(unnamed)"}</b>
-        <small>
-          ${d.walkingSkills || "—"} • ${d.size || "?"}${d.weight ? ` • ${d.weight} lb` : ""}
-          ${d.lastWalked ? ` • walked ${new Date(d.lastWalked).toLocaleString()}` : ""}
-        </small>
-      </div>
-    </div>
-  `).join("");
-  listEl.querySelectorAll(".item").forEach(el=>{
-    el.addEventListener("click", async ()=>{
-      const name = decodeURIComponent(el.getAttribute("data-name"));
-      await loadOne(name);
-      window.scrollTo({top:0, behavior:"smooth"});
+  function renderList(dogs){
+    if(!dogs.length){
+      document.getElementById("dogsList").innerHTML = `<div class="empty">No results.</div>`;
+      return;
+    }
+    document.getElementById("dogsList").innerHTML = dogs.map(d => {
+      const walked = d.lastWalked ? ` • walked ${new Date(d.lastWalked).toLocaleString()}` : "";
+      const sizeWeight = `${d.size || "?"}${d.weight ? ` • ${d.weight} lb` : ""}`;
+      const skills = d.walkingSkills || "—";
+      // NOTE: We do NOT print d.photoUrl anywhere in text.
+      return `
+        <div class="item" data-name="${encodeURIComponent(d.name)}" title="Click to load">
+          <div class="thumb">
+            ${ d.photoUrl ? `<img src="${d.photoUrl}" alt="">` : "" }
+          </div>
+          <div class="meta">
+            <b>${d.name || "(unnamed)"}</b>
+            <small>${skills} • ${sizeWeight}${walked}</small>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    document.querySelectorAll("#dogsList .item").forEach(el=>{
+      el.addEventListener("click", async ()=>{
+        const name = decodeURIComponent(el.getAttribute("data-name"));
+        await loadOne(name);
+        window.scrollTo({top:0, behavior:"smooth"});
+      });
     });
-  });
-}
+  }
 
 // Load all
 async function refreshFromServer(){
