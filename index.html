@@ -8,7 +8,6 @@
 
 <style>
 :root{
-
   --bg:#0b0b0b; --bg2:#121212;
   --card:rgba(255,255,255,.06); --card-brd:rgba(255,255,255,.12);
   --text:#f6f7f8; --muted:#b7bfc9;
@@ -18,7 +17,6 @@
   --shadow:0 20px 40px rgba(0,0,0,.35);
   --radius:18px;
 }
-
 @media (prefers-color-scheme: light){
   :root{
     --bg:#ffffff; --bg2:#f6f6f6;
@@ -28,7 +26,6 @@
     --shadow:0 20px 40px rgba(9,30,66,.12);
   }
 }
-
 *{box-sizing:border-box}
 body{
   margin:0; color:var(--text);
@@ -57,7 +54,6 @@ h1{margin:0;font-size:clamp(26px,4vw,34px);letter-spacing:.2px}
   backdrop-filter: blur(16px) saturate(120%);
   border-radius:var(--radius); box-shadow:var(--shadow); overflow:clip;
 }
-
 .section{padding:18px;border-bottom:1px solid var(--card-brd)}
 .section:last-child{border-bottom:0}
 
@@ -127,7 +123,7 @@ h1{margin:0;font-size:clamp(26px,4vw,34px);letter-spacing:.2px}
 }
 .item:hover{ background:rgba(255,255,255,.07); transform:translateY(-1px) }
 .thumb{width:58px;height:58px;border-radius:12px;overflow:hidden;border:1px solid var(--card-brd); background:#0c0c0c}
-.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .meta b{display:block;font-size:15px}
 .meta small{color:var(--muted)}
 .empty{color:var(--muted);text-align:center;padding:22px 10px}
@@ -157,6 +153,8 @@ h1{margin:0;font-size:clamp(26px,4vw,34px);letter-spacing:.2px}
           <h2 id="formTitle" style="margin:0 0 6px;font-size:18px">Dog details</h2>
           <div class="kv" id="metaLine"></div>
           <div class="tools" style="margin-top:10px">
+            <span class="pill">Walking Skills: Needs training / Average Walker / Great Walker</span>
+            <span class="pill">Upsert by Name</span>
           </div>
         </div>
 
@@ -283,11 +281,11 @@ h1{margin:0;font-size:clamp(26px,4vw,34px);letter-spacing:.2px}
   </div>
 
 <script>
+/* ===== Helpers ===== */
 const $ = (id)=>document.getElementById(id);
 const statusEl = $("status");
 const previewEl = $("preview");
 const listEl = $("dogsList");
-
 let ALL_DOGS = []; // in-memory cache for filtering
 
 function setStatus(msg, kind){
@@ -295,18 +293,59 @@ function setStatus(msg, kind){
   statusEl.classList.toggle("ok", kind==="ok");
   statusEl.classList.toggle("err", kind==="err");
 }
-
 function isoNowLocal(){
   const d = new Date(); const pad=(n)=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function localToISO(s){ if(!s) return ""; const dt = new Date(s); return isNaN(dt) ? "" : dt.toISOString(); }
 
+/* Image URL normalization + placeholder */
+function normalizePhotoUrl(u){
+  if(!u) return "";
+  let url = u.trim();
+  try{
+    const d = new URL(url);
+    d.protocol = "https:"; // enforce https
+
+    // Google Drive: /file/d/FILE_ID/... → uc?export=view&id=FILE_ID
+    if(d.hostname.includes("drive.google.com") && d.pathname.includes("/file/d/")){
+      const parts = d.pathname.split("/");
+      const idIdx = parts.indexOf("d")+1;
+      const fileId = parts[idIdx] || "";
+      if(fileId) return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    }
+    // Google Drive: /open?id=FILE_ID
+    if(d.hostname.includes("drive.google.com") && d.pathname.includes("/open") && d.searchParams.get("id")){
+      const fileId = d.searchParams.get("id");
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    }
+
+    return d.toString();
+  }catch{
+    return url; // not a valid URL; let the <img> fail into placeholder
+  }
+}
+const PLACEHOLDER_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <rect width="120" height="120" rx="16" fill="#1d1d1d"/>
+    <g fill="#ff7a00">
+      <circle cx="38" cy="40" r="12"/>
+      <circle cx="60" cy="34" r="12"/>
+      <circle cx="82" cy="40" r="12"/>
+      <path d="M60 54c-16 0-30 10-30 22 0 8 8 14 30 14s30-6 30-14c0-12-14-22-30-22z"/>
+    </g>
+  </svg>
+`);
+
+/* ===== UI wiring ===== */
+
 // Live photo preview
 $("photoUrl").addEventListener("input", ()=>{
-  const url = $("photoUrl").value.trim();
+  const raw = $("photoUrl").value.trim();
+  const url = normalizePhotoUrl(raw);
   previewEl.innerHTML = url
-    ? `<img src="${url}" alt="Dog photo preview" onerror="this.parentNode.innerHTML='<span>Invalid image URL</span>'">`
+    ? `<img src="${url}" alt="Dog photo preview" referrerpolicy="no-referrer"
+         onerror="this.onerror=null; this.src='${PLACEHOLDER_SVG}'">`
     : `<span>No photo yet</span>`;
 });
 // Stamp now
@@ -319,7 +358,7 @@ $("resetBtn").addEventListener("click", ()=>{
   setStatus("");
 });
 
-// Save (upsert by Name)
+/* ===== Save (upsert by Name) ===== */
 $("saveBtn").addEventListener("click", async ()=>{
   const name = $("name").value.trim();
   if(!name){ setStatus("Please enter a name.", "err"); return; }
@@ -333,7 +372,6 @@ $("saveBtn").addEventListener("click", async ()=>{
     lastWalked: localToISO($("lastWalked").value),
     notes: $("notes").value.trim()
   };
-
   try{
     setStatus("Saving…");
     const res = await fetch("/.netlify/functions/dog-submit", {
@@ -346,7 +384,14 @@ $("saveBtn").addEventListener("click", async ()=>{
   }catch{ setStatus("Network error.", "err"); }
 });
 
-// Filtering logic
+/* ===== Filtering ===== */
+$("search").addEventListener("input", applyFilters);
+$("filterSize").addEventListener("change", applyFilters);
+$("filterSkill").addEventListener("change", applyFilters);
+$("clearFilters").addEventListener("click", ()=>{
+  $("search").value = ""; $("filterSize").value = ""; $("filterSkill").value = "";
+  applyFilters();
+});
 function applyFilters(){
   const q = $("search").value.trim().toLowerCase();
   const fs = $("filterSize").value;
@@ -361,48 +406,44 @@ function applyFilters(){
   });
   renderList(filtered);
 }
-$("search").addEventListener("input", applyFilters);
-$("filterSize").addEventListener("change", applyFilters);
-$("filterSkill").addEventListener("change", applyFilters);
-$("clearFilters").addEventListener("click", ()=>{
-  $("search").value = ""; $("filterSize").value = ""; $("filterSkill").value = "";
-  applyFilters();
-});
 
-// Render list
-  function renderList(dogs){
-    if(!dogs.length){
-      document.getElementById("dogsList").innerHTML = `<div class="empty">No results.</div>`;
-      return;
-    }
-    document.getElementById("dogsList").innerHTML = dogs.map(d => {
-      const walked = d.lastWalked ? ` • walked ${new Date(d.lastWalked).toLocaleString()}` : "";
-      const sizeWeight = `${d.size || "?"}${d.weight ? ` • ${d.weight} lb` : ""}`;
-      const skills = d.walkingSkills || "—";
-      // NOTE: We do NOT print d.photoUrl anywhere in text.
-      return `
-        <div class="item" data-name="${encodeURIComponent(d.name)}" title="Click to load">
-          <div class="thumb">
-            ${ d.photoUrl ? `<img src="${d.photoUrl}" alt="">` : "" }
-          </div>
-          <div class="meta">
-            <b>${d.name || "(unnamed)"}</b>
-            <small>${skills} • ${sizeWeight}${walked}</small>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    document.querySelectorAll("#dogsList .item").forEach(el=>{
-      el.addEventListener("click", async ()=>{
-        const name = decodeURIComponent(el.getAttribute("data-name"));
-        await loadOne(name);
-        window.scrollTo({top:0, behavior:"smooth"});
-      });
-    });
+/* ===== Rendering ===== */
+function renderList(dogs){
+  if(!dogs.length){
+    listEl.innerHTML = `<div class="empty">No results.</div>`;
+    return;
   }
+  listEl.innerHTML = dogs.map(d => {
+    const thumbSrc = d.photoUrl ? normalizePhotoUrl(d.photoUrl) : "";
+    const img = thumbSrc
+      ? `<img src="${thumbSrc}" alt="" referrerpolicy="no-referrer"
+              onerror="this.onerror=null; this.src='${PLACEHOLDER_SVG}'">`
+      : "";
+    const walked = d.lastWalked ? ` • walked ${new Date(d.lastWalked).toLocaleString()}` : "";
+    const sizeWeight = `${d.size || "?"}${d.weight ? ` • ${d.weight} lb` : ""}`;
+    const skills = d.walkingSkills || "—";
 
-// Load all
+    return `
+      <div class="item" data-name="${encodeURIComponent(d.name)}" title="Click to load">
+        <div class="thumb">${img}</div>
+        <div class="meta">
+          <b>${d.name || "(unnamed)"}</b>
+          <small>${skills} • ${sizeWeight}${walked}</small>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  listEl.querySelectorAll(".item").forEach(el=>{
+    el.addEventListener("click", async ()=>{
+      const name = decodeURIComponent(el.getAttribute("data-name"));
+      await loadOne(name);
+      window.scrollTo({top:0, behavior:"smooth"});
+    });
+  });
+}
+
+/* ===== Data I/O ===== */
 async function refreshFromServer(){
   try{
     const res = await fetch("/.netlify/functions/dog-get");
@@ -414,9 +455,7 @@ async function refreshFromServer(){
     listEl.innerHTML = `<div class="empty">Couldn’t load list.</div>`;
   }
 }
-$("refreshBtn").addEventListener("click", refreshFromServer);
 
-// Load one into form
 async function loadOne(name){
   try{
     setStatus(`Loading ${name}…`);
@@ -437,14 +476,20 @@ async function loadOne(name){
       if(r) r.checked = true; else (document.querySelector('input[name="walkingSkills"][value="Needs training"]')||{}).checked = true;
     }
 
+    // Force preview refresh with normalized URL
+    const raw = $("photoUrl").value.trim();
+    const nrm = normalizePhotoUrl(raw);
+    previewEl.innerHTML = nrm
+      ? `<img src="${nrm}" alt="Dog photo preview" referrerpolicy="no-referrer"
+           onerror="this.onerror=null; this.src='${PLACEHOLDER_SVG}'">`
+      : `<span>No photo yet</span>`;
 
-    $("photoUrl").dispatchEvent(new Event("input"));
-    $("lastWalked").value = (d.lastWalked && d.lastWalked.length>=16) ? d.lastWalked.replace('Z','') : "";
     setStatus(`Loaded ${d.name}.`, "ok");
   }catch{ setStatus("Couldn’t load dog.", "err"); }
 }
 
-// init
+/* ===== Init ===== */
+$("refreshBtn").addEventListener("click", refreshFromServer);
 refreshFromServer();
 </script>
 </body>
