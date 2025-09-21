@@ -23,11 +23,11 @@ export const handler = async (event) => {
     const {
       name,
       photoUrl = "",
-      temperament = "",
+      walkingSkills = "",
       size = "",
       weight = "",
-      lastWalked = "", // NEW
-      notes = ""       // NEW
+      lastWalked = "",
+      notes = ""
     } = JSON.parse(event.body || "{}");
 
     if (!name) {
@@ -43,7 +43,7 @@ export const handler = async (event) => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Read all rows to upsert by Name
+    // Read for upsert
     const read = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: "'Dogs'!A:H",
@@ -52,35 +52,23 @@ export const handler = async (event) => {
     const rows = read.data.values || [];
     const header = rows[0] || [];
 
-    // Build the new row in header order:
-    // A: Timestamp | B: Name | C: PhotoURL | D: Temperament | E: Size | F: Weight | G: LastWalked | H: Notes
+    // A Timestamp | B Name | C PhotoURL | D WalkingSkills | E Size | F Weight | G LastWalked | H Notes
     const nowIso = new Date().toISOString();
     const newRow = [
-      nowIso,
-      name,
-      photoUrl,
-      temperament,
-      size,
-      String(weight),
-      lastWalked, // NEW G
-      notes       // NEW H
+      nowIso, name, photoUrl, walkingSkills, size, String(weight), lastWalked, notes
     ];
 
-    // Find existing row for this Name (case-insensitive trim)
-    let targetRowIndex = -1; // 0-based within rows array (incl header)
-    const nameColIndex = header.indexOf("Name"); // should be 1
+    // Find row for Name (case-insensitive)
+    let targetRowIndex = -1;
+    const nameColIndex = header.indexOf("Name");
     if (nameColIndex !== -1 && rows.length > 1) {
       for (let i = 1; i < rows.length; i++) {
         const cell = (rows[i][nameColIndex] || "").toString().trim().toLowerCase();
-        if (cell === name.trim().toLowerCase()) {
-          targetRowIndex = i;
-          break;
-        }
+        if (cell === name.trim().toLowerCase()) { targetRowIndex = i; break; }
       }
     }
 
     if (targetRowIndex === -1) {
-      // Append
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
         range: "'Dogs'!A:H",
@@ -89,8 +77,7 @@ export const handler = async (event) => {
         requestBody: { values: [newRow] },
       });
     } else {
-      // Update the exact row
-      const sheetRowNumber = targetRowIndex + 1; // convert to 1-based
+      const sheetRowNumber = targetRowIndex + 1;
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
         range: `'Dogs'!A${sheetRowNumber}:H${sheetRowNumber}`,

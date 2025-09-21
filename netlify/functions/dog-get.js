@@ -25,7 +25,6 @@ export const handler = async (event) => {
     );
     const sheets = google.sheets({ version: "v4", auth: jwt });
 
-    // Pull full table incl new columns
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: "'Dogs'!A:H",
@@ -43,22 +42,20 @@ export const handler = async (event) => {
     const [header, ...data] = values;
     const idx = (h) => header.indexOf(h);
 
-    const out = data.map((r) => ({
+    const dogs = data.map((r) => ({
       timestamp: r[idx("Timestamp")] || "",
       name: r[idx("Name")] || "",
       photoUrl: r[idx("PhotoURL")] || "",
-      temperament: r[idx("Temperament")] || "",
+      walkingSkills: r[idx("WalkingSkills")] || "",
       size: r[idx("Size")] || "",
       weight: r[idx("Weight")] || "",
-      lastWalked: r[idx("LastWalked")] || "", // NEW
-      notes: r[idx("Notes")] || ""            // NEW
+      lastWalked: r[idx("LastWalked")] || "",
+      notes: r[idx("Notes")] || ""
     }));
-
-    // Optional: single dog lookup ?dog=Name
     const q = event.queryStringParameters?.dog;
     const body = q
-      ? { dog: out.find(d => (d.name || "").toLowerCase() === q.toLowerCase()) || null }
-      : { dogs: out };
+      ? { dog: dogs.find(d => (d.name || "").toLowerCase() === q.toLowerCase()) || null }
+      : { dogs };
 
     return {
       statusCode: 200,
